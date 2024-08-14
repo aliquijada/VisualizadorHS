@@ -9,25 +9,30 @@ function dateFormat(date){
     var month = parts[1];
     var year = parts[2];
     var newDate = 'b' + year + '-' + month + '-' + day;
-    return [newDate, year, month, day]
+    return [newDate, year, month, day];
 }
 
 
-exports.collection = function(selectedYear,date) {
+exports.collection = function(selectedYear,date, disp_year) {
+  var year;
   if(selectedYear!=1){
-    var year = selectedYear
+    year = selectedYear;
   }else{
     year = dateFormat(date)[1];  
   }
   var newDate = dateFormat(date)[0];
-  var dateList = Selectores.getDateList(year);
+  var dateList = Selectores.getDateList(year, disp_year);
+  
   var index = Selectores.getBand(date, dateList);
   var rasters = [];
   var returnRaster = null; 
+  
   rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n1'));
   rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n2'));
+  if(year !== '2024'){
   rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n3'));
   rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n4'));
+  }
    if(selectedYear==1){
   for (var j = 0; j < rasters.length; j++) {
     var raster = rasters[j];
@@ -39,10 +44,10 @@ exports.collection = function(selectedYear,date) {
       
     }}
   }
+
+  return [rasters, returnRaster];
   
-  return [rasters, returnRaster]
-  
-}
+};
 
 //funcion para obtener min y max de la banda
 exports.MinMaxBand = function(layer, date) {
