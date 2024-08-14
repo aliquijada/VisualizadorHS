@@ -1,24 +1,4 @@
 
-/* Google Analytics*/
-
-var analyticsCode = ui.Label({
-  value: '<!-- Google tag (gtag.js) -->'+
-        '<script async src="https://www.googletagmanager.com/gtag/js?id=G-71LZ1F1B4W"></script>'+
-        '<script>'+
-        'window.dataLayer = window.dataLayer || [];'+
-        'function gtag(){dataLayer.push(arguments);}'+
-        'gtag("js", new Date());'+
-        'gtag("config", "G-71LZ1F1B4W");'+
-        '</script>',
-  style: {position: 'bottom-left'},
-  targetUrl: null,
-  
-});
-var analyticsPanel = ui.Panel({
-  widgets: [analyticsCode],
-  style: {shown: false}
-});
-ui.root.add(analyticsPanel);
 /*******************************************************************************
  * Modulos *
  * Import all the modules from other scripts
@@ -27,9 +7,13 @@ ui.root.add(analyticsPanel);
 var Selectores = require('users/corfobbppciren2023/App_HS_User:Selectores.js'); 
 var ImgClass = require('users/corfobbppciren2023/App_HS_User:Img_collection.js'); 
 var chartClass = require('users/corfobbppciren2023/App_HS_User:TimeSerie.js'); 
+var Sensores = require('users/corfobbppciren2023/App_HS_User:Sensores.js'); 
+var Leyenda = require('users/corfobbppciren2023/App_HS_User:Leyenda.js'); 
+//var reset = require('users/corfobbppciren2023/App_HS_User:ResetButton.js'); 
+var s = require('users/corfobbppciren2023/App_HS_User:Style.js').styles; 
 var c = {}; // Define a JSON object for storing UI components.
 var region = ee.FeatureCollection("projects/ee-corfobbppciren2023/assets/Geometrias/Region_de_Valparaiso_4326_corregido");
-
+var sensores_puntos = ee.FeatureCollection("projects/ee-corfobbppciren2023/assets/sensores_corfo");
 
 /*******************************************************************************
  * Components *
@@ -78,7 +62,7 @@ c.info.panel = ui.Panel([
 ]);
 
 //Define a download per year widget group
-c.downloadYear = {}
+c.downloadYear = {};
 c.downloadYear.title = ui.Label();
 c.downloadYear.label1 = ui.Label();
 c.downloadYear.label2 = ui.Label();
@@ -87,16 +71,35 @@ c.downloadYear.label4 = ui.Label();
 
 //Lista donde se almacenara el valor min y max de la capa mostrada. 
 //Se usa para actualizar la leyenda y renderizar la capa
-c.minmax= []
+c.minmax= [];
+
+//posicion capas: [HS (dummy), REGION, SENSORES]
 
 
-var init_year = '2017'
+// dummy layer para no perder la posicion 0 en el arreglo de capas
+var dummyImage = ee.Image().paint({
+  featureCollection: ee.FeatureCollection([]),
+  color: 'black',
+  width: 0 // Ancho de línea 0, por lo que no será visible
+});
+var layerDummy = ui.Map.Layer(dummyImage,{}, 'dummy');
+c.map.layers().set(0, layerDummy); //queda en posicion 0
+
+//region
+var styled_region = region.style(s.visParams_region);
+var layer_region = ui.Map.Layer(styled_region, {}, 'Región de Valparaíso');
+c.map.layers().add(layer_region); //queda en posicion 1
+
+
+var init_year = '2017';
 //probaremos con el agno 2017 primero
-var disp_year = ['2017', '2015']
+var disp_year = ['2017', '2015', '2024'];
+
+
 //var disp_year = ['2015','2016','2017','2018','2019','2020','2021','2022','2023']
 
 //arreglo temporal
-var DownloadYearlabels = [
+c.downloadYearlabels = [
   c.downloadYear.label1,
   c.downloadYear.label2,
   c.downloadYear.label3,
@@ -108,24 +111,43 @@ c.selectYear = {};
 c.selectYear.label = ui.Label('Seleccione un año para mostrar');
 c.selectYear.selector = ui.Select({
   items:disp_year,
-  value: init_year, 
+  placeholder: 'Seleccione un año',
   onChange: function(selectedYear) {
+        
+    //
+    c.legend.panel.style().set({'shown': false});
+    
+
+    
+    
     c.downloadYear.title.setValue('Descarga año completo');
     c.downloadYear.title.style().set(s.widgetTitle);
     c.selectBand.selector.setValue(null, false );
-        if (c.selectBand.selector.getValue() === null) {
-          c.downloadBand.label.style().set(disableLabel);
-          c.downloadBand.label.setUrl('');
-        }
     
-    var links = ImgClass.collection(selectedYear, '01/01/0101')[0];
-    for (var i = 0; i < DownloadYearlabels.length; i++) {
-      DownloadYearlabels[i].setValue('Parte ' + (i + 1) + '/4');
-      var url = links[i].getDownloadURL({name: 'SM'+ selectedYear + 'Valparaiso_'+ i.toString(), scale: 1000, filePerBand: false, format: 'GEO_TIFF'});
-      DownloadYearlabels[i].setUrl(url);
-      DownloadYearlabels[i].style().set(ableLabel);
-      
+    if (c.selectBand.selector.getValue() === null) {
+      c.downloadBand.label.style().set(s.disableLabel);
+      c.downloadBand.label.setUrl('');
     }
+    
+    var links = ImgClass.collection(selectedYear, '01/01/0101', disp_year)[0];
+    
+    
+for (var i = 0; i < c.downloadYearlabels.length; i++) {
+
+  if (selectedYear === '2024' && i > 1) {
+    break;
+  }
+
+  c.downloadYearlabels[i].setValue('Parte ' + (i + 1) + '/4');
+  var url = links[i].getDownloadURL({
+    name: 'SM' + selectedYear + 'Valparaiso_' + i.toString(), 
+    scale: 1000, 
+    filePerBand: false, 
+    format: 'GEO_TIFF'
+  });
+  c.downloadYearlabels[i].setUrl(url);
+  c.downloadYearlabels[i].style().set(s.ableLabel);
+}
     
     //eliminar la tabla si es que hay
     if(c.infoTable !== undefined){
@@ -134,27 +156,31 @@ c.selectYear.selector = ui.Select({
     
     //eliminar la capa que este en el mapa si es que la hay
     print(c.map.layers());
-    var mapLayer = c.map.layers().get(1);
+    var mapLayer = c.map.layers().get(0);
     if(mapLayer !== undefined){
       if(mapLayer.getName()== 'Humedad de Suelo'){
-        c.map.remove(mapLayer);
+        c.map.layers().set(0, layerDummy); //reemplazamos con la capa dummy para borrar
+
       }
     }
     //eliminar grafico
     c.chart.chartPanel.style().set('shown', false);
+    
+
   }
   
-})
+});
+
 c.selectYear.panel = ui.Panel([c.selectYear.label, c.selectYear.selector]);
 c.downloadYear.panel = ui.Panel([c.downloadYear.title, 
                                   c.downloadYear.label1,
                                   c.downloadYear.label2,
                                   c.downloadYear.label3,
-                                  c.downloadYear.label4])
+                                  c.downloadYear.label4]);
 
 // Define a download per day widget group
 c.downloadBand = {}; //Etiqueta de descarga que se actualizará dinámicamente
-c.downloadBand.title = ui.Label('')
+c.downloadBand.title = ui.Label('');
 c.downloadBand.label = ui.Label('');
 
 // Define a data band selector widget group.
@@ -162,10 +188,10 @@ c.downloadBand.label = ui.Label('');
 c.selectBand = {};
 c.selectBand.label = ui.Label('Seleccione el día a visualizar');
 c.selectBand.selector = ui.Select({
-  items: Selectores.getDateList(init_year),
+  items: Selectores.getDateList(c.selectYear.selector.getValue(), disp_year),
   placeholder: 'Seleccione una fecha',
   onChange: function(selectedDate) {
-    
+
     var raster = ImgClass.collection(1,selectedDate)[1];
     
     // Verificar si se obtuvo un raster válido
@@ -173,7 +199,6 @@ c.selectBand.selector = ui.Select({
       
       try{
         var minMaxResult = updateMinMax(raster, selectedDate);
-        print(minMaxResult);
 
         // Utilizar los valores min y max directamente
         var clippedRaster = raster.clip(region);
@@ -183,17 +208,18 @@ c.selectBand.selector = ui.Select({
           palette: ['ECF0FF', '8A4089', '00145D']
         }, 'Humedad de Suelo');
         
-        c.map.layers().set(1, layer); //se agrega a la segunda posicion
+        c.map.layers().set(0, layer); //se agrega a la tercera posicion
       
-      updateLegend(minMaxResult.min, minMaxResult.max);
-      
+
+      Leyenda.updateLegend(minMaxResult.min, minMaxResult.max, c);
+
       //genera link de descarga inmediatamente
       var downloadUrl = raster.getDownloadURL({format: 'GeoTIFF'});
       c.downloadBand.label.setValue('Descarga Imagen día');
       c.downloadBand.label.setUrl(downloadUrl);
-      c.downloadBand.label.style().set(ableLabel);
+      c.downloadBand.label.style().set(s.ableLabel);
       c.downloadBand.title.setValue('Descarga día seleccionado');
-      c.downloadBand.title.style().set(s.widgetTitle)
+      c.downloadBand.title.style().set(s.widgetTitle);
       
       if(c.infoTable !== undefined){
         //borrar la tabla si es que existe
@@ -204,14 +230,16 @@ c.selectBand.selector = ui.Select({
         print('Error:', err);
       }
 
-
+        //
+    print(c.map.layers());
+    //
     } else {
       print('No se encontró un raster para la fecha seleccionada.');
     }
   }
 });
 c.selectBand.panel = ui.Panel([c.selectBand.label, c.selectBand.selector]);
-c.downloadBand.panel = ui.Panel([c.downloadBand.title, c.downloadBand.label ])
+c.downloadBand.panel = ui.Panel([c.downloadBand.title, c.downloadBand.label ]);
 
 
 // Define a legend widget group.
@@ -238,9 +266,7 @@ c.legend.panel = ui.Panel([
 
 // Widgets del mapa
 
-
 //Define a panel for informative table
-
 c.infoTable = ui.Panel({
   layout: ui.Panel.Layout.flow('vertical'),
   style: {
@@ -252,12 +278,6 @@ var closeButton = ui.Button({
   label : 'Cerrar tabla',
   onClick: function() {
     c.infoTable.style().set('shown', false);
-  },
-  style: {
-    margin: '0px 0px 2px 0px',
-    fontSize: '6px',
-    padding: '0px',
-
   }
 });
 
@@ -268,8 +288,6 @@ var lonRow = createRow('Longitud', '', '#D3D3D3');
 var humRow = createRow('Humedad (%)', '', 'white');
 var dateRow = createRow('Fecha', '', '#D3D3D3');
 
-
-
 // Define a panel for displaying a chart.
 c.chart = {};
 c.chart.shownButton = ui.Button('Ocultar gráfico');
@@ -278,9 +296,43 @@ c.chart.chartPanel = ui.Panel([c.chart.shownButton, c.chart.container]);
 
 
 //Point for onClick function
-var pointLayer = null
+var pointLayer = null;
 
 
+//Sensores
+c.sensores = {};
+c.sensores.aboutLabel = ui.Label(
+  'Los sensores fueron utilizados para calibrar el modelo. Cuentan ' +
+  'con mediciones desde marzo de 2024 hasta junio de 2024.');
+
+c.sensores.cerrar = ui.Button({
+  label : 'Cerrar tabla',
+  onClick: function() {
+    c.sensores.panel.style().set('shown', false);
+  }
+});
+c.sensores.nom_sensor = ui.Label('Nombre sensor:');
+c.sensores.localidad = ui.Label('Localidad:');
+c.sensores.altitud = ui.Label('Altitud');
+c.sensores.lon = ui.Label('Lon:');
+c.sensores.lat= ui.Label('Lat:');
+c.sensores.panel = ui.Panel([
+  c.sensores.cerrar,
+  c.sensores.nom_sensor, 
+  c.sensores.localidad,
+  c.sensores.altitud,
+  c.sensores.lon,
+  c.sensores.lat]);
+c.sensores.label = ui.Label('Seleccione el selector a visualizar');
+var listSensores = Sensores.nom_sensores.keys().getInfo();
+
+c.sensores.selector = ui.Select({
+    items: listSensores,
+    placeholder: 'Seleccione un sensor',
+  });
+
+
+//c.resetButton = ui.Button('Borrar Selección');
 /*******************************************************************************
  * Composition *
  * 
@@ -296,9 +348,16 @@ c.controlPanel.add(c.info.panel);
 c.controlPanel.add(c.dividers.divider1);
 c.controlPanel.add(c.selectYear.panel);
 c.controlPanel.add(c.selectBand.panel);
-c.controlPanel.add(c.dividers.divider4);
-c.controlPanel.add(c.downloadBand.panel);
+c.controlPanel.add(c.dividers.divider2);
+c.controlPanel.add(c.sensores.label);
+c.controlPanel.add(c.sensores.aboutLabel);
+c.controlPanel.add(c.sensores.selector);
+c.controlPanel.add(c.dividers.divider3);
+//c.controlPanel.add(c.resetButton);
+//c.controlPanel.add(c.dividers.divider4);
 c.controlPanel.add(c.downloadYear.panel);
+c.controlPanel.add(c.downloadBand.panel);
+
 
 c.infoTable.add(closeButton);
 c.infoTable.add(latRow);
@@ -312,18 +371,23 @@ c.map.add(c.chart.chartPanel);
 c.map.add(c.infoTable);
 
 
-//Mapa de fondo, region
-//colores region
-var visParams_region = {
-  color: 'black',          // Color del borde
-  fillColor: 'FF000000',
-  width: 3               // Ancho del borde
-};
-var styled_region = region.style(visParams_region);
-var layer_region = ui.Map.Layer(styled_region, {}, 'Región de Valparaíso');
-c.map.layers().add(layer_region);
 
 
+//capa sensores
+
+var senVis = sensores_puntos.style({
+  color: '1e90ff',
+  width: 2,
+  fillColor: 'ff475788',
+  pointSize: 7,
+  pointShape: 'circle'
+});
+
+var layerSensor = ui.Map.Layer(sensores_puntos,senVis, 'Puntos sensores');
+c.map.addLayer(senVis, null, 'Puntos sensores');
+c.map.add(c.sensores.panel);
+
+  
 ui.root.clear();
 ui.root.add(c.controlPanel);
 ui.root.add(c.map);
@@ -333,82 +397,12 @@ ui.root.add(c.map);
  * Styling *
  * 
  * A section to define and set widget style properties.
+ * Styles are defined in Style.js and imported as a module here with the 
+ * name of "s". 
  * 
- * Guidelines:
- * 1. At the top, define styles for widget "classes" i.e. styles that might be
- *    applied to several widgets, like text styles or margin styles.
- * 2. Set "inline" style properties for single-use styles.
- * 3. You can add multiple styles to widgets, add "inline" style followed by
- *    "class" styles. If multiple styles need to be set on the same widget, do
- *    it consecutively to maintain order.
  ******************************************************************************/
 
-// Define CSS-like class style properties for widgets; reusable styles.
-var s = {};
-
-s.opacityWhiteMed = {
-  backgroundColor: 'rgba(255, 255, 255, 0.5)'
-};
-s.opacityWhiteNone = {
-  backgroundColor: 'rgba(255, 255, 255, 0)'
-};
-s.aboutText = {
-  fontSize: '13px',
-  color: '505050'
-};
-s.widgetTitle = {
-  fontSize: '15px',
-  fontWeight: 'bold',
-  margin: '8px 8px 0px 8px',
-  color: '383838'
-};
-s.stretchHorizontal = {
-  stretch: 'horizontal'
-};
-s.noTopMargin = {
-  margin: '0px 8px 8px 8px'
-};
-s.smallBottomMargin = {
-  margin: '8px 8px 4px 8px'
-};
-s.bigTopMargin = {
-  margin: '24px 8px 8px 8px'
-};
-s.divider = {
-  backgroundColor: 'F0F0F0',
-  height: '4px',
-  margin: '20px 0px'
-};
-
-s.infoTable = {
-  border: '1px solid black',
-  width: '250px',
-  padding: '8px',
-  shown: false
-}
-
-
-//diccionario con estilo de label desactivada, se busca transparencia. Sera el estilo inicial.
-var disableLabel = {
-  backgroundColor: 'white',  // blanco como el fondo del controlPanel.
-  padding: '10px 15px',  
-  border: 'none',
-  color: 'white',  
-  textAlign: 'center',  
-  fontSize: '13px',  
-  margin: '10px'};
-
-var ableLabel = {
-  stretch: 'horizontal',
-  backgroundColor: '#f3f3f3',  // color gris igual al de los selectores.
-  padding: '5px',  
-  border: '1px solid lightgrey',//#dcdcd 
-  color: 'black',  
-  textAlign: 'center',  
-  fontSize: '13px',  
-  margin: '10px' 
-}
-// Set widget style.
+           
 c.info.titleLabel.style().set({
   fontSize: '20px',
   fontWeight: 'bold'
@@ -426,11 +420,11 @@ c.selectYear.label.style().set(s.widgetTitle);
 c.selectBand.selector.style().set(s.stretchHorizontal);
 c.selectBand.label.style().set(s.widgetTitle);
 
-c.downloadYear.label1.style().set(disableLabel);
-c.downloadYear.label2.style().set(disableLabel);
-c.downloadYear.label3.style().set(disableLabel);
-c.downloadYear.label4.style().set(disableLabel);
-c.downloadBand.label.style().set(disableLabel);
+c.downloadYear.label1.style().set(s.disableLabel);
+c.downloadYear.label2.style().set(s.disableLabel);
+c.downloadYear.label3.style().set(s.disableLabel);
+c.downloadYear.label4.style().set(s.disableLabel);
+c.downloadBand.label.style().set(s.disableLabel);
 
 c.controlPanel.style().set({
   width: '275px',
@@ -448,49 +442,44 @@ c.chart.chartPanel.style().set({
   shown: false
 });
 c.chart.chartPanel.style().set(s.opacityWhiteMed);
+
 c.chart.shownButton.style().set({
   margin: '0px 0px',
 });
 
 
 //estilo leyenda
-c.legend.title.style().set({
-  fontWeight: 'bold',
-  fontSize: '12px',
-  color: '383838'
-});
+c.legend.title.style().set(s.legendTitle);
 c.legend.title.style().set(s.opacityWhiteNone);
-c.legend.colorbar.style().set({
-  stretch: 'horizontal',
-  margin: '0px 8px',
-  maxHeight: '20px'
-});
-c.legend.leftLabel.style().set({
-  margin: '4px 8px',
-  fontSize: '12px'
-});
+c.legend.colorbar.style().set(s.legendColorbar);
+c.legend.leftLabel.style().set(s.legendLabel);
 c.legend.leftLabel.style().set(s.opacityWhiteNone);
-c.legend.centerLabel.style().set({
-  margin: '4px 8px',
-  fontSize: '12px',
-  textAlign: 'center',
-  stretch: 'horizontal'
-});
+c.legend.centerLabel.style().set(s.legendCenterLabel);
 c.legend.centerLabel.style().set(s.opacityWhiteNone);
-c.legend.rightLabel.style().set({
-  margin: '4px 8px',
-  fontSize: '12px'
-});
+c.legend.rightLabel.style().set(s.legendLabel);
 c.legend.rightLabel.style().set(s.opacityWhiteNone);
-c.legend.panel.style().set({
-  position: 'bottom-left',
-  width: '210px',
-  padding: '0px'});
+c.legend.panel.style().set(s.legendPanel);
 c.legend.panel.style().set(s.opacityWhiteMed);
 c.legend.labelPanel.style().set(s.opacityWhiteNone);
 
 
 c.infoTable.style().set(s.opacityWhiteMed);
+closeButton.style().set(s.buttonStyle);
+
+c.sensores.label.style().set(s.widgetTitle);
+c.sensores.aboutLabel.style().set(s.aboutText);
+c.sensores.selector.style().set(s.stretchHorizontal);
+c.sensores.cerrar.style().set(s.buttonStyle);
+c.sensores.panel.style().set(s.infoTable);
+c.sensores.panel.style().set(s.opacityWhiteMed);
+c.sensores.panel.style().set({position: 'top-right'});
+c.sensores.nom_sensor.style().set(s.labelTabla1);
+c.sensores.localidad.style().set(s.labelTabla2);
+c.sensores.altitud.style().set(s.labelTabla1);
+c.sensores.lon.style().set(s.labelTabla2);
+c.sensores.lat.style().set(s.labelTabla1);
+
+//c.resetButton.style().set(s.stretchHorizontal);
 
 // Loop through setting divider style.
 Object.keys(c.dividers).forEach(function(key) {
@@ -511,45 +500,79 @@ Object.keys(c.dividers).forEach(function(key) {
  * 3. As much as possible, include callbacks that update URL parameters.
  ******************************************************************************/
 
+//c.resetButton.onClick(reset.borrarSeleccion(c,s, layerDummy, pointLayer));
+
+/*
+function borrarSeleccion(){
+ c.selectYear.selector.setValue(null, false);
+    c.selectBand.selector.setValue(null, false);
+    c.sensores.selector.setValue(null, false);
+
+    // 2. Ocultar las descargas
+    c.downloadYear.title.setValue('');
+    DownloadYearlabels.forEach(function(label) {
+        label.setValue('');
+        label.setUrl('');
+        label.style().set(s.disableLabel);
+    });
+    c.downloadBand.title.setValue('');
+    c.downloadBand.label.setValue('');
+    c.downloadBand.label.setUrl('');
+    c.downloadBand.label.style().set(s.disableLabel);
+
+    // 3. Restaurar el mapa al estado inicial (posición y zoom).
+    c.map.setCenter({
+        lon: ui.url.get('lon', -70.3), // Coordenadas iniciales
+        lat: ui.url.get('lat', -32.9),
+        zoom: ui.url.get('zoom', 8)
+    });
+
+    // 4. Limpiar capas adicionales en el mapa, excepto las iniciales.
+    c.map.layers().set(0, layerDummy); // Eliminar capa de humedad del suelo
+    c.map.layers().set(1, layer_region); // Restaurar capa de región
+    c.map.layers().remove(pointLayer); // Eliminar el punto de clic, si existe
+    
+    // 5. Ocultar elementos adicionales (gráficos, tablas, leyendas).
+    c.chart.chartPanel.style().set('shown', false);
+    c.infoTable.style().set('shown', false);
+    c.legend.panel.style().set('shown', false);
+    c.sensores.panel.style().set('shown', false);
+    
+    // Limpiar el panel de sensores
+    c.sensores.nom_sensor.setValue('Nombre sensor:');
+    c.sensores.localidad.setValue('Localidad:');
+    c.sensores.altitud.setValue('Altitud');
+    c.sensores.lon.setValue('Lon:');
+    c.sensores.lat.setValue('Lat:');
+
+}
+*/
+
+c.sensores.selector.onChange(function(nombreSeleccionado) {
+  Sensores.zoomSensor(nombreSeleccionado, c.map);
+  Sensores.updateTooltip(nombreSeleccionado, sensores_puntos, c.sensores.panel);
+  
+  // Llamar a serieSensor con un callback que maneje el resultado
+  Sensores.serieSensor(nombreSeleccionado, function(listGeometry) {
+    if (listGeometry) {
+      chartClass.createChartSensor(c, nombreSeleccionado, listGeometry, region);
+    } else {
+      print('listGeometry es undefined o null');
+    }
+  });
+});
+
+
 function getSelectedYear() {
   var agno_sel1 = c.selectYear.selector.getValue();
-  var days_agno = Selectores.getDateList(agno_sel1);
-  c.selectBand.selector.items().reset(days_agno)
+  var days_agno = Selectores.getDateList(agno_sel1, disp_year);
+  c.selectBand.selector.items().reset(days_agno);
   return days_agno;
 }
 
 c.selectYear.selector.onChange(getSelectedYear);
 
 
-// Handles drawing the legend when band selector changes.
-function updateLegend(minValue, maxValue) {
-      var date = c.selectBand.selector.getValue();
-      // Rev. disponibilidad de valores antes de usarlos
-      if (minValue !== null && maxValue !== null) {
-        // Redondear los valores a un decimal
-        var minValueRounded = minValue.toFixed(1);
-        var maxValueRounded = maxValue.toFixed(1);
-        var centerValueRounded = ((parseFloat(minValue) + parseFloat(maxValue)) / 2).toFixed(1);
-        print('Min Value:', minValueRounded);
-        print('Max Value:', maxValueRounded);
-        // Se utiliza la misma paleta para todas las capas renderizadas
-        c.legend.title.setValue('Humedad de suelo ' + date + ' (%)');
-
-        c.legend.colorbar.setParams({
-          bbox: [0, 0, 1, 0.1],
-          dimensions: '100x10',
-          format: 'png',
-          min:0,
-          max:1,
-          palette : ['ECF0FF', '8A4089', '00145D']
-        });
-        c.legend.leftLabel.setValue(minValueRounded);
-        c.legend.centerLabel.setValue(centerValueRounded);
-        c.legend.rightLabel.setValue(maxValueRounded);
-      } else {
-        print('Error: No se pudieron obtener los valores min y max.');
-      }
-    }
 
 //crear fila para panel de informacion 
 function createRow(label, value, bgColor) {
@@ -613,9 +636,17 @@ c.map.setCenter({
   zoom: ui.url.get('zoom', 8)
 });
 
+function handleMouseMove(coords) {
+  Sensores.updateTooltip(coords, sensores_puntos, c.sensores.panel);
+}
+
+// Capturar eventos del ratón en la capa
+c.map.onClick(handleMouseMove);
+
 c.map.onClick(function(coords) {
   
-  
+  //esta funcion solo se debe activar si hay un año cargado
+  if(c.selectYear.selector.getValue() !== null) {
   //para agregar un punto donde clickeo el usuario
   var clickedPoint = ee.Geometry.Point(coords.lon, coords.lat);
   if (pointLayer) {
@@ -624,10 +655,10 @@ c.map.onClick(function(coords) {
   pointLayer = ui.Map.Layer(clickedPoint, {color: 'red'}, 'Punto seleccionado');
   
   
-  // Aquí pasas el valor del selector y las coordenadas al método Click
   var valueDict = chartClass.Click(c.selectYear.selector.getValue(), coords, region);
   chartClass.createChartOUT(c,valueDict);
-  //var valueTable = chartClass.tablaInfo(coords,c,region, valueDict,c.selectBand.selector.getValue());
+  
+  //if(c.selectBand.selector.getValue()!== null){
   chartClass.tablaInfo(coords, {map: c.map}, region, valueDict, c.selectBand.selector.getValue(), function(values) {
     if (values) {
       // Actualizar las etiquetas con los valores retornados
@@ -644,11 +675,15 @@ c.map.onClick(function(coords) {
       c.infoTable.style().set('shown', false);
     }
   });
+  
   if(valueDict){
     c.map.layers().add(pointLayer);
+  }}  
   }
-});
+  
+);
 
 
-print(c)
+print(c);
+//print(c.map.layers());
 
