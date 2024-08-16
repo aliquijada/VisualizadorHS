@@ -164,10 +164,3 @@ function serieSensor(nombreSensor, callback) {
 }
 
 exports.serieSensor = serieSensor;
-
-
-
-
-
-
-
