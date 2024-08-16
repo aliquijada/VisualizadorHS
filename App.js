@@ -93,7 +93,7 @@ c.map.layers().add(layer_region); //queda en posicion 1
 
 var init_year = '2017';
 //probaremos con el agno 2017 primero
-var disp_year = ['2017', '2015', '2024'];
+var disp_year = ['2015', '2017', '2024'];
 
 
 //var disp_year = ['2015','2016','2017','2018','2019','2020','2021','2022','2023']
@@ -113,61 +113,12 @@ c.selectYear.selector = ui.Select({
   items:disp_year,
   placeholder: 'Seleccione un año',
   onChange: function(selectedYear) {
-        
-    //
-    c.legend.panel.style().set({'shown': false});
-    
 
-    
-    
-    c.downloadYear.title.setValue('Descarga año completo');
-    c.downloadYear.title.style().set(s.widgetTitle);
-    c.selectBand.selector.setValue(null, false );
-    
-    if (c.selectBand.selector.getValue() === null) {
-      c.downloadBand.label.style().set(s.disableLabel);
-      c.downloadBand.label.setUrl('');
-    }
-    
     var links = ImgClass.collection(selectedYear, '01/01/0101', disp_year)[0];
     
-    
-for (var i = 0; i < c.downloadYearlabels.length; i++) {
-
-  if (selectedYear === '2024' && i > 1) {
-    break;
+    Selectores.onChangeSelectedYear(c, links, selectedYear, s);
   }
-
-  c.downloadYearlabels[i].setValue('Parte ' + (i + 1) + '/4');
-  var url = links[i].getDownloadURL({
-    name: 'SM' + selectedYear + 'Valparaiso_' + i.toString(), 
-    scale: 1000, 
-    filePerBand: false, 
-    format: 'GEO_TIFF'
-  });
-  c.downloadYearlabels[i].setUrl(url);
-  c.downloadYearlabels[i].style().set(s.ableLabel);
-}
-    
-    //eliminar la tabla si es que hay
-    if(c.infoTable !== undefined){
-        c.infoTable.style().set('shown', false);
-      }
-    
-    //eliminar la capa que este en el mapa si es que la hay
-    print(c.map.layers());
-    var mapLayer = c.map.layers().get(0);
-    if(mapLayer !== undefined){
-      if(mapLayer.getName()== 'Humedad de Suelo'){
-        c.map.layers().set(0, layerDummy); //reemplazamos con la capa dummy para borrar
-
-      }
-    }
-    //eliminar grafico
-    c.chart.chartPanel.style().set('shown', false);
-    
-
-  }
+  
   
 });
 
@@ -236,6 +187,7 @@ c.selectBand.selector = ui.Select({
     } else {
       print('No se encontró un raster para la fecha seleccionada.');
     }
+    
   }
 });
 c.selectBand.panel = ui.Panel([c.selectBand.label, c.selectBand.selector]);
