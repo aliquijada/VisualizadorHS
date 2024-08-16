@@ -1,6 +1,14 @@
 // Define una lista de imagenes que sera agregara a una coleccion en el main.
-
 var Selectores = require('users/corfobbppciren2023/App_HS_User:Selectores.js'); 
+
+// Función optimizada para obtener min y max
+ImgClass = {};
+
+// Variable para almacenar resultados cacheados
+ImgClass.cache = {};
+
+
+//Funciones internas
 
 function dateFormat(date){
   //recibe la fecha como string y devuelve cada parte y el formato para ser utilizado en la banda
@@ -12,9 +20,60 @@ function dateFormat(date){
     return [newDate, year, month, day];
 }
 
+function checkAssetsYear(year) {
+  print('ejecutando');
+  var assetList = [
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n1',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n2',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n3',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n4'
+  ];
+  
+  var existingCount = 0;
+  
+  // Función auxiliar para verificar un asset
+  var checkAsset = function(assetPath) {
+    // Intenta obtener el asset para verificar su existencia
+    var asset = ee.Image(assetPath).getInfo();
+    if (asset) {
+      existingCount++;
+    }
+  };
+  
+  // Verificar cada asset en la lista
+  assetList.forEach(function(path) {
+    try {
+      checkAsset(path);
+    } catch (e) {
+
+    }
+  });
+  
+  return existingCount;
+}
+
+// Función para obtener el año actual
+function getYear() {
+  var currentDate = ee.Date(new Date());
+  // Extrae el año de la fecha actual
+  var currentYear = currentDate.get('year').getInfo();
+  return currentYear;
+}
+
+function checkImageExistence(imageId) {
+  try {
+    var image = ee.Image(imageId);
+    var exists = image.bandNames().size().gt(0).getInfo();
+    return exists;
+  } catch (e) {
+    // En caso de error, la imagen no existe
+    return false;
+  }
+}
 
 exports.collection = function(selectedYear,date, disp_year) {
   var year;
+  
   if(selectedYear!=1){
     year = selectedYear;
   }else{
@@ -27,12 +86,21 @@ exports.collection = function(selectedYear,date, disp_year) {
   var rasters = [];
   var returnRaster = null; 
   
-  rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n1'));
-  rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n2'));
-  if(year !== '2024'){
-  rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n3'));
-  rasters.push(ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n4'));
-  }
+  // Lista de IDs de imágenes
+  var imageIds = [
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n1',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n2',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n3',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n4'
+  ];
+  
+  // Verificar existencia y agregar a la lista si existe
+  imageIds.forEach(function(id) {
+    if (checkImageExistence(id)) {
+      rasters.push(ee.Image(id));
+    } 
+  });
+  
    if(selectedYear==1){
   for (var j = 0; j < rasters.length; j++) {
     var raster = rasters[j];
@@ -50,6 +118,7 @@ exports.collection = function(selectedYear,date, disp_year) {
 };
 
 //funcion para obtener min y max de la banda
+
 exports.MinMaxBand = function(layer, date) {
   var region = layer.geometry();
   var bandName = dateFormat(date)[0];
@@ -65,45 +134,38 @@ exports.MinMaxBand = function(layer, date) {
   return ee.Dictionary({min: minValue, max: maxValue});
 };
 
-exports.DownloadYear = function(year){
+
+  
+// Función para descargar imágenes del año especificado
+exports.DownloadYear = function(year) {
   var links = [];
+  // Lista de IDs de imágenes
+  var imageIds = [
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n1',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n2',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n3',
+    'users/corfobbppciren2023/SM' + year + 'Valparaiso_n4'
+  ];
   
-  var img1 = ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n1'),
-      img2 = ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n2'),
-      img3 = ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n3'),
-      img4 = ee.Image('users/corfobbppciren2023/SM'+ year +'Valparaiso_n4');
-    
-    // Lógica para generar el enlace según el año seleccionado
-    var url1 = img1.getDownloadURL({name: 'SM'+ year + 'Valparaiso_1', scale: 1000, filePerBand: false, format: 'GEO_TIFF'});
-    var url2 = img2.getDownloadURL({name: 'SM'+ year + 'Valparaiso_2', scale: 1000, filePerBand: false, format: 'GEO_TIFF'});
-    var url3 = img3.getDownloadURL({name: 'SM'+ year + 'Valparaiso_3', scale: 1000, filePerBand: false, format: 'GEO_TIFF'});
-    var url4 = img4.getDownloadURL({name: 'SM'+ year + 'Valparaiso_4', scale: 1000, filePerBand: false, format: 'GEO_TIFF'});
-    
-    links.push(url1, url2, url3, url4);
-    return links
-  
-}
+  // Nombres de archivos para las imágenes
+  var fileNames = [
+    'SM' + year + 'Valparaiso_1',
+    'SM' + year + 'Valparaiso_2',
+    'SM' + year + 'Valparaiso_3',
+    'SM' + year + 'Valparaiso_4'
+  ];
 
-
-
-//funcion de prueba para ver los valores de la banda
-function histograma(layer, region, bandName){
-  var histogram = layer.reduceRegion({
-    reducer: ee.Reducer.frequencyHistogram(),
-    geometry: region,
-    scale: 1000,  
-    maxPixels: 1e13
-  });
-  
-  // Obtener el histograma para la banda deseada
-  var band_histogram = ee.Dictionary(histogram.get(bandName)); 
-  
-  // Convertir las llaves del histograma (valores únicos) en una lista
-  var unique_values = band_histogram.keys().map(function(key) {
-    return ee.Number.parse(key);
-  });
-  
-  print('Unique values:', unique_values);
-
-}
-
+  // Verificar existencia y generar enlaces solo para imágenes existentes
+  for (var i = 0; i < imageIds.length; i++) {
+    if (checkImageExistence(imageIds[i])) {
+      var url = ee.Image(imageIds[i]).getDownloadURL({
+        name: fileNames[i],
+        scale: 1000,
+        filePerBand: false,
+        format: 'GEO_TIFF'
+      });
+      links.push(url);
+    } 
+  }
+  return links;
+};
